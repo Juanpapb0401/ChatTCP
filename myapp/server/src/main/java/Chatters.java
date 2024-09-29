@@ -1,6 +1,7 @@
 import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class Chatters {
     private Map<String, PrintWriter> clientes = new HashMap<>(); // Estructura HashMap para almacenar usuarios y sus PrintWriter
@@ -35,6 +36,14 @@ public class Chatters {
     // Comprobar si un usuario ya existe
     public synchronized boolean existeUsr(String userName) {
         return clientes.containsKey(userName); // Verificar si el usuario ya está registrado en el sistema
+    }
+
+    public Set<String> getConnectedUsers() {
+        return clientes.keySet();
+    }
+
+    public PrintWriter getWriter(String userName) {
+        return clientes.get(userName);
     }
 }
 
