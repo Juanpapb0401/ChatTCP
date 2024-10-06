@@ -5,6 +5,7 @@
           Thomas Brueck
           Stick Martinez
           Pablo Guzman
+          Juan Esteban Eraso
 
 Implementar un chat que permita:
 
