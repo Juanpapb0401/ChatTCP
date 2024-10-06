@@ -1,28 +1,30 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
 
 public class Client {
-    private static final String SERVER_IP = "localhost"; // Dirección IP del servidor
-    private static final int PORT = 6565; // Puerto del servidor
+    private static final String SERVER_IP = "192.168.1.5"; // Asegúrate de cambiar esto a la IP correcta de tu servidor
+    private static final int PORT = 6565;
+    private static final int FILE_PORT = 7000;
 
     public static void main(String[] args) {
         try {
-            Socket socket = new Socket(SERVER_IP, PORT);
-            System.out.println("Conectado al servidor.");
+            Socket messageSocket = new Socket(SERVER_IP, PORT);
+            System.out.println("Conectado al servidor para mensajes.");
 
-            String message;
             BufferedReader userInput = new BufferedReader(new InputStreamReader(System.in));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(messageSocket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(messageSocket.getInputStream()));
 
-            // Solicitar el nombre de usuario y manejar la respuesta del servidor
+            // Manejar la autenticación del usuario
+            String message;
             while ((message = in.readLine()) != null) {
                 if (message.startsWith("SUBMITNAME")) {
                     System.out.print("Ingrese nombre de usuario: ");
                     String name = userInput.readLine();
                     out.println(name);
                 } else if (message.startsWith("NAMEACCEPTED")) {
-                    System.out.println("Nombre aceptado!!");
+                    System.out.println("Nombre aceptado. ¡Bienvenido al chat!");
                     break;
                 }
             }
@@ -32,44 +34,56 @@ public class Client {
             new Thread(lector).start();
 
             // Manejar la entrada del usuario para enviar mensajes y notas de voz
-            while ((message = userInput.readLine()) != null) {
-                if (message.startsWith("/sendvoicenote")) {
-                    // Formato: /sendvoicenote <usuario|grupo> <nombreArchivo>
-                    String[] parts = message.split(" ");
+            while (true) {
+                String input = userInput.readLine();
+                if (input.startsWith("/sendvoicenote")) {
+                    String[] parts = input.split(" ", 3);
                     if (parts.length == 3) {
+                        String target = parts[1];
                         String fileName = parts[2];
-                        sendVoiceNote(fileName, socket); // Enviar la nota de voz
-                        out.println(message); // Enviar el comando al servidor
+                        sendVoiceNote(target, fileName, out);
                     } else {
-                        System.out.println("Uso incorrecto del comando. Formato: /sendvoicenote <usuario|grupo> <nombreArchivo>");
+                        System.out.println("Uso: /sendvoicenote <usuario|grupo> <nombreArchivo>");
                     }
                 } else {
-                    out.println(message); // Enviar mensajes regulares
+                    out.println(input);
                 }
             }
-
         } catch (IOException e) {
+            System.out.println("Error de conexión: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // Método para enviar una nota de voz desde el cliente
-    private static void sendVoiceNote(String fileName, Socket socket) throws IOException {
-        File file = new File(fileName);
-        if (!file.exists()) {
-            System.out.println("Archivo no encontrado: " + fileName);
+    private static void sendVoiceNote(String target, String fileName, PrintWriter out) {
+        Path filePath = Paths.get(fileName);
+        if (!Files.exists(filePath)) {
+            System.out.println("El archivo no existe: " + fileName);
             return;
         }
 
-        // Enviar el archivo de audio al servidor
-        try (FileInputStream fis = new FileInputStream(file);
-             DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
+        try (Socket fileSocket = new Socket(SERVER_IP, FILE_PORT);
+             DataOutputStream dos = new DataOutputStream(fileSocket.getOutputStream());
+             FileInputStream fis = new FileInputStream(filePath.toFile())) {
+
+            // Enviar comando al servidor de mensajes
+            out.println("/sendvoicenote " + target + " " + fileName);
+
+            // Enviar tamaño del archivo
+            long fileSize = Files.size(filePath);
+            dos.writeLong(fileSize);
+
+            // Enviar contenido del archivo
             byte[] buffer = new byte[4096];
             int bytesRead;
-            while ((bytesRead = fis.read(buffer)) > 0) {
+            long totalBytesRead = 0;
+            while ((bytesRead = fis.read(buffer)) != -1) {
                 dos.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                System.out.printf("Enviando: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
             }
-            System.out.println("Nota de voz enviada: " + fileName);
+            dos.flush();
+            System.out.println("\nNota de voz enviada: " + fileName);
         } catch (IOException e) {
             System.out.println("Error al enviar la nota de voz: " + e.getMessage());
         }

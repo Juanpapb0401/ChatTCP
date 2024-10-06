@@ -10,16 +10,23 @@ public class Lector implements Runnable{
 
     @Override
     public void run() {
-        //leer la linea que envia el servidor e imprimir en pantalla
+        // Leer la línea que envía el servidor e imprimir en pantalla
         try {
-
             while ((message = in.readLine()) != null) {
                 System.out.println(message);
             }
+        } catch (SocketException e) {
+            System.err.println("Socket cerrado: " + e.getMessage());
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error de entrada/salida: " + e.getMessage());
+        } finally {
+            try {
+                in.close();  // Cerrar BufferedReader al finalizar
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
     }
+
 
 }

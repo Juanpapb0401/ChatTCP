@@ -1,22 +1,23 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.nio.file.*;
 
 class ClientHandler implements Runnable {
     private Socket clientSocket;
     private BufferedReader in;
     private PrintWriter out;
     private String clientName;
-    Chatters clientes;
-    private Map<String, Set<PrintWriter>> groups; // Mapa de grupos para manejar la comunicación grupal
+    private Chatters clientes;
+    private Map<String, Set<PrintWriter>> groups;
 
     public ClientHandler(Socket socket, Chatters clientes, Map<String, Set<PrintWriter>> groups) {
-        this.clientes = clientes;
         this.clientSocket = socket;
+        this.clientes = clientes;
         this.groups = groups;
         try {
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            out = new PrintWriter(clientSocket.getOutputStream(), true);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -25,7 +26,7 @@ class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            // Pedir el nombre del cliente hasta que sea válido
+            // Autenticación del usuario
             while (true) {
                 out.println("SUBMITNAME");
                 clientName = in.readLine();
@@ -34,15 +35,16 @@ class ClientHandler implements Runnable {
                 }
                 synchronized (clientes) {
                     if (!clientName.isBlank() && !clientes.existeUsr(clientName)) {
-                        clientes.broadcastMessage(clientName + " se ha unido al chat.");
-                        out.println("NAMEACCEPTED " + clientName);
                         clientes.addUsr(clientName, out);
                         break;
                     }
                 }
             }
 
-            // Ahora que el nombre está establecido, el usuario puede usar la funcionalidad de grupos
+            out.println("NAMEACCEPTED " + clientName);
+            clientes.broadcastMessage(clientName + " se ha unido al chat.");
+
+            // Procesar mensajes del cliente
             String message;
             while ((message = in.readLine()) != null) {
                 if (message.startsWith("/creategroup")) {
@@ -55,88 +57,76 @@ class ClientHandler implements Runnable {
                     String[] parts = message.split(" ", 3);
                     sendMessageToGroup(parts[1], parts[2]);
                 } else if (message.startsWith("/listclients")) {
-                    listClients(); // Nuevo comando para listar los clientes conectados
+                    listClients();
                 } else if (message.startsWith("/sendvoicenote")) {
-                    // Formato: /sendvoicenote <usuario|grupo> <nombreArchivo>
-                    String[] parts = message.split(" ");
-                    String target = parts[1];
-                    String fileName = parts[2];
-                    receiveVoiceNote(fileName, target);
+                    String[] parts = message.split(" ", 3);
+                    if (parts.length == 3) {
+                        receiveVoiceNote(parts[2], parts[1]);
+                    }
                 } else if (message.startsWith("@")) {
-                    // Mensaje privado: formato @nombreUsuario: mensaje
                     int idx = message.indexOf(':');
                     if (idx != -1) {
                         String targetUser = message.substring(1, idx);
-                        String newMessage = message.substring(idx + 1).trim();
-                        if (!newMessage.isEmpty()) {
-                            clientes.privateMessage(targetUser, clientName + " (privado): " + newMessage);
-                        }
+                        String privateMessage = message.substring(idx + 1).trim();
+                        clientes.privateMessage(targetUser, clientName + " (privado): " + privateMessage);
                     }
                 } else {
-                    // Mensaje público
                     clientes.broadcastMessage(clientName + ": " + message);
                 }
             }
         } catch (IOException e) {
-            // e.printStackTrace();
+            System.out.println("Error en ClientHandler: " + e.getMessage());
         } finally {
+            if (clientName != null) {
+                clientes.removeUsr(clientName);
+                clientes.broadcastMessage(clientName + " ha abandonado el chat.");
+            }
             try {
                 clientSocket.close();
-                System.out.println(clientName + " ha abandonado el chat.");
-                clientes.broadcastMessage(clientName + " ha abandonado el chat.");
-                synchronized (clientes) {
-                    clientes.removeUsr(clientName);
-                }
             } catch (IOException e) {
-                // e.printStackTrace();
+                e.printStackTrace();
             }
         }
     }
 
-    // Método para crear un grupo
     private void createGroup(String groupName) {
         if (!groups.containsKey(groupName)) {
             groups.put(groupName, new HashSet<>());
-            out.println("Group '" + groupName + "' created successfully.");
+            out.println("Grupo '" + groupName + "' creado exitosamente.");
         } else {
-            out.println("Group '" + groupName + "' already exists.");
+            out.println("El grupo '" + groupName + "' ya existe.");
         }
     }
 
-    // Método para unirse a un grupo
     private void joinGroup(String groupName) {
         if (groups.containsKey(groupName)) {
             groups.get(groupName).add(out);
-            out.println("Joined group '" + groupName + "' successfully.");
+            out.println("Te has unido al grupo '" + groupName + "'.");
         } else {
-            out.println("Group '" + groupName + "' does not exist.");
+            out.println("El grupo '" + groupName + "' no existe.");
         }
     }
 
-    // Método para listar los grupos disponibles
     private void listGroups() {
         if (groups.isEmpty()) {
-            out.println("No groups available.");
+            out.println("No hay grupos disponibles.");
         } else {
-            out.println("Available groups: " + String.join(", ", groups.keySet()));
+            out.println("Grupos disponibles: " + String.join(", ", groups.keySet()));
         }
     }
 
-    // Método para enviar un mensaje a un grupo específico
     private void sendMessageToGroup(String groupName, String message) {
         if (groups.containsKey(groupName)) {
             for (PrintWriter writer : groups.get(groupName)) {
-                writer.println("Group " + groupName + ": " + message);
+                writer.println("Grupo " + groupName + ": " + clientName + ": " + message);
             }
         } else {
-            out.println("Group '" + groupName + "' does not exist.");
+            out.println("El grupo '" + groupName + "' no existe.");
         }
     }
 
-    // Nuevo método para listar todos los clientes conectados
     private void listClients() {
         Set<String> connectedUsers = clientes.getConnectedUsers();
-        System.out.println("Clientes conectados: " + connectedUsers); // Mensaje de depuración para el servidor
         if (connectedUsers.isEmpty()) {
             out.println("No hay clientes conectados.");
         } else {
@@ -144,58 +134,79 @@ class ClientHandler implements Runnable {
         }
     }
 
-    // Método para recibir una nota de voz desde el cliente
     private void receiveVoiceNote(String fileName, String target) throws IOException {
-        DataInputStream dis = new DataInputStream(clientSocket.getInputStream());
-        FileOutputStream fos = new FileOutputStream("server_" + fileName);
-        byte[] buffer = new byte[4096];
-        int bytesRead;
-        while ((bytesRead = dis.read(buffer)) > 0) {
-            fos.write(buffer, 0, bytesRead);
+        Path filePath = Paths.get("server_" + fileName);
+        try (DataInputStream dis = new DataInputStream(clientSocket.getInputStream());
+             FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
+
+            long fileSize = dis.readLong();
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            long totalBytesRead = 0;
+
+            while (totalBytesRead < fileSize && (bytesRead = dis.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                System.out.printf("Recibiendo: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
+            }
+            fos.flush();
+            System.out.println("\nNota de voz recibida: " + fileName);
+
+            sendVoiceNoteToTarget(fileName, target);
+        } catch (IOException e) {
+            System.out.println("Error al recibir la nota de voz: " + e.getMessage());
+            throw e;
         }
-        fos.close();
-        sendVoiceNoteToTarget(fileName, target);
     }
 
-    // Método para enviar una nota de voz a un usuario o grupo
     private void sendVoiceNoteToTarget(String fileName, String target) throws IOException {
-        File file = new File("server_" + fileName);
-        if (clientes.existeUsr(target)) {
-            sendVoiceNoteToUser(file, target);
-        } else if (groups.containsKey(target)) {
-            sendVoiceNoteToGroup(file, target);
+        Path filePath = Paths.get("server_" + fileName);
+        if (Files.exists(filePath)) {
+            if (clientes.existeUsr(target)) {
+                sendVoiceNoteToUser(filePath, target);
+            } else if (groups.containsKey(target)) {
+                sendVoiceNoteToGroup(filePath, target);
+            } else {
+                out.println("Usuario o grupo no encontrado: " + target);
+            }
         } else {
-            out.println("Usuario o grupo no encontrado: " + target);
+            out.println("Archivo no encontrado en el servidor: " + fileName);
         }
     }
 
-    // Enviar una nota de voz a un usuario específico
-    private void sendVoiceNoteToUser(File file, String user) throws IOException {
+    private void sendVoiceNoteToUser(Path filePath, String user) throws IOException {
         PrintWriter userWriter = clientes.getWriter(user);
         if (userWriter != null) {
             userWriter.println("Recibiendo nota de voz de " + clientName);
-            sendFile(file, userWriter);
+            sendFile(filePath, userWriter);
         }
     }
 
-    // Enviar una nota de voz a un grupo
-    private void sendVoiceNoteToGroup(File file, String group) throws IOException {
+    private void sendVoiceNoteToGroup(Path filePath, String group) throws IOException {
         for (PrintWriter writer : groups.get(group)) {
             writer.println("Recibiendo nota de voz de " + clientName + " en el grupo " + group);
-            sendFile(file, writer);
+            sendFile(filePath, writer);
         }
     }
 
-    // Método auxiliar para enviar el archivo a través del socket
-    private void sendFile(File file, PrintWriter writer) throws IOException {
-        FileInputStream fis = new FileInputStream(file);
-        DataOutputStream dos = new DataOutputStream(clientSocket.getOutputStream());
-        byte[] buffer = new byte[4096];
-        int bytesRead;
-        while ((bytesRead = fis.read(buffer)) > 0) {
-            dos.write(buffer, 0, bytesRead);
+    private void sendFile(Path filePath, PrintWriter writer) throws IOException {
+        try (FileInputStream fis = new FileInputStream(filePath.toFile());
+             DataOutputStream dos = new DataOutputStream(clientSocket.getOutputStream())) {
+
+            long fileSize = Files.size(filePath);
+            dos.writeLong(fileSize);
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            long totalBytesRead = 0;
+            while ((bytesRead = fis.read(buffer)) > 0) {
+                dos.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                System.out.printf("Enviando: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
+            }
+            dos.flush();
+            System.out.println("\nNota de voz enviada correctamente.");
+            writer.println("Nota de voz recibida correctamente.");
         }
-        fis.close();
-        writer.println("Nota de voz enviada correctamente.");
     }
 }
