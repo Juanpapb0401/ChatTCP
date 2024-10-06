@@ -2,6 +2,8 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.nio.file.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 class ClientHandler implements Runnable {
     private Socket clientSocket;
@@ -10,6 +12,8 @@ class ClientHandler implements Runnable {
     private String clientName;
     private Chatters clientes;
     private Map<String, Set<PrintWriter>> groups;
+    private static List<String> messageHistory = new ArrayList<>();
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public ClientHandler(Socket socket, Chatters clientes, Map<String, Set<PrintWriter>> groups) {
         this.clientSocket = socket;
@@ -42,12 +46,16 @@ class ClientHandler implements Runnable {
             }
 
             out.println("NAMEACCEPTED " + clientName);
-            clientes.broadcastMessage(clientName + " se ha unido al chat.");
+            String joinMessage = clientName + " se ha unido al chat.";
+            clientes.broadcastMessage(joinMessage);
+            addToHistory(joinMessage);
 
             // Procesar mensajes del cliente
             String message;
             while ((message = in.readLine()) != null) {
-                if (message.startsWith("/creategroup")) {
+                if (message.equals("/history")) {
+                    sendHistory();
+                } else if (message.startsWith("/creategroup")) {
                     createGroup(message.split(" ")[1]);
                 } else if (message.startsWith("/joingroup")) {
                     joinGroup(message.split(" ")[1]);
@@ -69,9 +77,11 @@ class ClientHandler implements Runnable {
                         String targetUser = message.substring(1, idx);
                         String privateMessage = message.substring(idx + 1).trim();
                         clientes.privateMessage(targetUser, clientName + " (privado): " + privateMessage);
+                        addToHistory(clientName + " (privado a " + targetUser + "): " + privateMessage);
                     }
                 } else {
                     clientes.broadcastMessage(clientName + ": " + message);
+                    addToHistory(clientName + ": " + message);
                 }
             }
         } catch (IOException e) {
@@ -79,7 +89,9 @@ class ClientHandler implements Runnable {
         } finally {
             if (clientName != null) {
                 clientes.removeUsr(clientName);
-                clientes.broadcastMessage(clientName + " ha abandonado el chat.");
+                String leaveMessage = clientName + " ha abandonado el chat.";
+                clientes.broadcastMessage(leaveMessage);
+                addToHistory(leaveMessage);
             }
             try {
                 clientSocket.close();
@@ -89,10 +101,25 @@ class ClientHandler implements Runnable {
         }
     }
 
+    private static synchronized void addToHistory(String message) {
+        String timestamp = LocalDateTime.now().format(formatter);
+        messageHistory.add(timestamp + " " + message);
+    }
+
+    private void sendHistory() {
+        out.println("=== Historial de mensajes ===");
+        for (String msg : messageHistory) {
+            out.println(msg);
+        }
+        out.println("=== Fin del historial ===");
+    }
+
     private void createGroup(String groupName) {
         if (!groups.containsKey(groupName)) {
             groups.put(groupName, new HashSet<>());
-            out.println("Grupo '" + groupName + "' creado exitosamente.");
+            String message = "Grupo '" + groupName + "' creado por " + clientName;
+            out.println(message);
+            addToHistory(message);
         } else {
             out.println("El grupo '" + groupName + "' ya existe.");
         }
@@ -101,7 +128,9 @@ class ClientHandler implements Runnable {
     private void joinGroup(String groupName) {
         if (groups.containsKey(groupName)) {
             groups.get(groupName).add(out);
+            String message = clientName + " se ha unido al grupo '" + groupName + "'";
             out.println("Te has unido al grupo '" + groupName + "'.");
+            addToHistory(message);
         } else {
             out.println("El grupo '" + groupName + "' no existe.");
         }
@@ -117,9 +146,11 @@ class ClientHandler implements Runnable {
 
     private void sendMessageToGroup(String groupName, String message) {
         if (groups.containsKey(groupName)) {
+            String fullMessage = "Grupo " + groupName + ": " + clientName + ": " + message;
             for (PrintWriter writer : groups.get(groupName)) {
-                writer.println("Grupo " + groupName + ": " + clientName + ": " + message);
+                writer.println(fullMessage);
             }
+            addToHistory(fullMessage);
         } else {
             out.println("El grupo '" + groupName + "' no existe.");
         }
@@ -152,6 +183,8 @@ class ClientHandler implements Runnable {
             fos.flush();
             System.out.println("\nNota de voz recibida: " + fileName);
 
+            String voiceNoteMessage = clientName + " ha enviado una nota de voz a " + target + ": " + fileName;
+            addToHistory(voiceNoteMessage);
             sendVoiceNoteToTarget(fileName, target);
         } catch (IOException e) {
             System.out.println("Error al recibir la nota de voz: " + e.getMessage());
