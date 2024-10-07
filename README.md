@@ -21,6 +21,12 @@ Este proyecto es un chat desarrollado en **Ice - ZeroC** y **Gradle** que ofrece
 
 ## Instalación
 
+Requisitos
+Java: Versión 11 o superior
+Gradle: Versión 7.0 o superior
+0Ice: Framework para comunicación distribuida (preinstalado en el proyecto)
+Sistema Operativo: Windows, macOS o Linux con acceso a la terminal o command prompt
+
 Sigue los pasos a continuación para configurar el proyecto en tu entorno local.
 
 1. **Clona el Repositorio:**
