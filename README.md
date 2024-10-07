@@ -1,5 +1,14 @@
 # Chat con Llamadas de Voz y Grupos
 
+Realizado por:
+
+[Stick Martinez Valdes ](https://github.com/Stixkl)
+[Juan Pablo Parra ](https://github.com/Juanpapb0401)
+[Pablo Guzman ](https://github.com/Pableis05)
+[Juan Esteban Eraso ](https://github.com/JuanEstebanEraso)
+[Thomas Brueck ](https://github.com/Brueckk)
+
+
 ## Descripción del Proyecto
 
 Este proyecto es un chat desarrollado en **Ice - ZeroC** y **Gradle** que ofrece funcionalidades avanzadas como llamadas de voz, envío de audios y la creación de grupos. Todas las operaciones se realizan a través de la terminal o command prompt, proporcionando una experiencia eficiente y centrada en la línea de comandos.
@@ -24,11 +33,13 @@ Este proyecto es un chat desarrollado en **Ice - ZeroC** y **Gradle** que ofrece
 Requisitos
 Java: Versión 11 o superior
 Gradle: Versión 7.0 o superior
-0Ice: Framework para comunicación distribuida (preinstalado en el proyecto)
+ZeroC - Ice: Framework para comunicación distribuida (preinstalado en el proyecto)
 Sistema Operativo: Windows, macOS o Linux con acceso a la terminal o command prompt
 
 Sigue los pasos a continuación para configurar el proyecto en tu entorno local.
 
 1. **Clona el Repositorio:**
    ```bash
-   git clone https://github.com/usuario/chat-ice.git
+   git clone https://github.com/Juanpapb0401/ChatTCP.git
+
+   
