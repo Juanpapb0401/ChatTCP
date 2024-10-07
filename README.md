@@ -3,11 +3,16 @@
 Realizado por:
 
 [Stick Martinez Valdes ](https://github.com/Stixkl)
+
 [Juan Pablo Parra ](https://github.com/Juanpapb0401)
+
 [Pablo Guzman ](https://github.com/Pableis05)
+
 [Juan Esteban Eraso ](https://github.com/JuanEstebanEraso)
+
 [Thomas Brueck ](https://github.com/Brueckk)
 
+---
 
 ## Descripción del Proyecto
 
