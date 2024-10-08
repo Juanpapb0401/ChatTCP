@@ -3,7 +3,7 @@ import java.net.*;
 import java.nio.file.*;
 
 public class Client {
-    private static final String SERVER_IP = "192.168.1.19"; // Asegúrate de cambiar esto a la IP correcta de tu servidor
+    private static final String SERVER_IP = "192.168.1.5"; // Asegúrate de cambiar esto a la IP correcta de tu servidor
     private static final int PORT = 6565;
     private static final int FILE_PORT = 7000;
 

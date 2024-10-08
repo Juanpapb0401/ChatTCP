@@ -28,78 +28,87 @@ class ClientHandler implements Runnable {
     }
 
     @Override
-    public void run() {
-        try {
-            // Autenticación del usuario
-            while (true) {
-                out.println("SUBMITNAME");
-                clientName = in.readLine();
-                if (clientName == null) {
-                    return;
-                }
-                synchronized (clientes) {
-                    if (!clientName.isBlank() && !clientes.existeUsr(clientName)) {
-                        clientes.addUsr(clientName, out);
-                        break;
-                    }
-                }
+public void run() {
+    try {
+        // Autenticación del usuario
+        while (true) {
+            out.println("SUBMITNAME");
+            clientName = in.readLine();
+            if (clientName == null) {
+                return;
             }
-
-            out.println("NAMEACCEPTED " + clientName);
-            String joinMessage = clientName + " se ha unido al chat.";
-            clientes.broadcastMessage(joinMessage);
-            addToHistory(joinMessage);
-
-            // Procesar mensajes del cliente
-            String message;
-            while ((message = in.readLine()) != null) {
-                if (message.equals("/history")) {
-                    sendHistory();
-                } else if (message.startsWith("/creategroup")) {
-                    createGroup(message.split(" ")[1]);
-                } else if (message.startsWith("/joingroup")) {
-                    joinGroup(message.split(" ")[1]);
-                } else if (message.startsWith("/groups")) {
-                    listGroups();
-                } else if (message.startsWith("/msggroup")) {
-                    String[] parts = message.split(" ", 3);
-                    sendMessageToGroup(parts[1], parts[2]);
-                } else if (message.startsWith("/listclients")) {
-                    listClients();
-                } else if (message.startsWith("/sendvoicenote")) {
-                    String[] parts = message.split(" ", 3);
-                    if (parts.length == 3) {
-                        receiveVoiceNote(parts[2], parts[1]);
-                    }
-                } else if (message.startsWith("@")) {
-                    int idx = message.indexOf(':');
-                    if (idx != -1) {
-                        String targetUser = message.substring(1, idx);
-                        String privateMessage = message.substring(idx + 1).trim();
-                        clientes.privateMessage(targetUser, clientName + " (privado): " + privateMessage);
-                        addToHistory(clientName + " (privado a " + targetUser + "): " + privateMessage);
-                    }
-                } else {
-                    clientes.broadcastMessage(clientName + ": " + message);
-                    addToHistory(clientName + ": " + message);
+            synchronized (clientes) {
+                if (!clientName.isBlank() && !clientes.existeUsr(clientName)) {
+                    clientes.addUsr(clientName, out);
+                    break;
                 }
-            }
-        } catch (IOException e) {
-            System.out.println("Error en ClientHandler: " + e.getMessage());
-        } finally {
-            if (clientName != null) {
-                clientes.removeUsr(clientName);
-                String leaveMessage = clientName + " ha abandonado el chat.";
-                clientes.broadcastMessage(leaveMessage);
-                addToHistory(leaveMessage);
-            }
-            try {
-                clientSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
+
+        out.println("NAMEACCEPTED " + clientName);
+        String joinMessage = clientName + " se ha unido al chat.";
+        clientes.broadcastMessage(joinMessage);
+        addToHistory(joinMessage);
+
+        // Procesar mensajes del cliente
+        String message;
+        while ((message = in.readLine()) != null) {
+            if (message.equals("/history")) {
+                sendHistory();
+            } else if (message.startsWith("/creategroup")) {
+                createGroup(message.split(" ")[1]);
+            } else if (message.startsWith("/joingroup")) {
+                joinGroup(message.split(" ")[1]);
+            } else if (message.startsWith("/groups")) {
+                listGroups();
+            } else if (message.startsWith("/msggroup")) {
+                String[] parts = message.split(" ", 3);
+                sendMessageToGroup(parts[1], parts[2]);
+            } else if (message.startsWith("/listclients")) {
+                listClients();
+            } else if (message.startsWith("/sendvoicenote")) {
+                String[] parts = message.split(" ", 3);
+                if (parts.length == 3) {
+                    // Ejecutar la recepción de la nota de voz en un hilo separado
+                    Thread voiceNoteThread = new Thread(() -> {
+                        try {
+                            receiveVoiceNote(parts[2], parts[1]);
+                        } catch (IOException e) {
+                            System.out.println("Error al recibir la nota de voz: " + e.getMessage());
+                        }
+                    });
+                    voiceNoteThread.start(); // Iniciar el hilo para recibir la nota de voz
+                }
+            } else if (message.startsWith("@")) {
+                int idx = message.indexOf(':');
+                if (idx != -1) {
+                    String targetUser = message.substring(1, idx);
+                    String privateMessage = message.substring(idx + 1).trim();
+                    clientes.privateMessage(targetUser, clientName + " (privado): " + privateMessage);
+                    addToHistory(clientName + " (privado a " + targetUser + "): " + privateMessage);
+                }
+            } else {
+                clientes.broadcastMessage(clientName + ": " + message);
+                addToHistory(clientName + ": " + message);
+            }
+        }
+    } catch (IOException e) {
+        System.out.println("Error en ClientHandler: " + e.getMessage());
+    } finally {
+        if (clientName != null) {
+            clientes.removeUsr(clientName);
+            String leaveMessage = clientName + " ha abandonado el chat.";
+            clientes.broadcastMessage(leaveMessage);
+            addToHistory(leaveMessage);
+        }
+        try {
+            clientSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
+}
+
 
     private static synchronized void addToHistory(String message) {
         String timestamp = LocalDateTime.now().format(formatter);
