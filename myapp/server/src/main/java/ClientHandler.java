@@ -187,13 +187,17 @@ public void run() {
             Files.createDirectories(backupDir);  // Crear la carpeta si no existe
         }
     
-        // Guardar el archivo con su nombre y extensión original (sin agregar timestamp)
+        // Guardar el archivo con su nombre y extensión original
         Path filePath = backupDir.resolve(sanitizedFileName);
+        
+        System.out.println("Iniciando la recepción de archivo: " + sanitizedFileName);  // Diagnóstico
     
         try (DataInputStream dis = new DataInputStream(clientSocket.getInputStream());
              FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
     
-            long fileSize = dis.readLong();
+            long fileSize = dis.readLong();  // Leer el tamaño del archivo
+            System.out.println("Tamaño del archivo a recibir: " + fileSize + " bytes");
+    
             byte[] buffer = new byte[4096];
             int bytesRead;
             long totalBytesRead = 0;
@@ -203,8 +207,16 @@ public void run() {
                 totalBytesRead += bytesRead;
                 System.out.printf("Recibiendo: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
             }
-            fos.flush();
-            System.out.println("\nNota de voz recibida: " + sanitizedFileName);
+    
+            fos.flush();  // Asegurarse de que todos los datos se escriban en el archivo
+            System.out.println("Recepción completada. Total de bytes recibidos: " + totalBytesRead);
+    
+            // Verificar si se recibieron todos los bytes esperados
+            if (totalBytesRead == fileSize) {
+                System.out.println("\nNota de voz recibida correctamente: " + sanitizedFileName);
+            } else {
+                System.out.println("\nError: No se recibieron todos los bytes esperados. Se recibieron " + totalBytesRead + " de " + fileSize + " bytes.");
+            }
     
             // Guardar en el historial
             String voiceNoteMessage = clientName + " ha enviado una nota de voz a " + target + ": " + sanitizedFileName;
@@ -214,29 +226,52 @@ public void run() {
             System.out.println("Error al recibir la nota de voz: " + e.getMessage());
             throw e;
         }
+    
+        // Asegurarse de cerrar el socket si aún está abierto
+        if (!clientSocket.isClosed()) {
+            System.out.println("Cerrando el socket de cliente después de recibir el archivo.");
+            clientSocket.close();
+        }
     }
+    
     
     
     
 
     private void listVoiceNoteHistory() {
         try {
-            Path backupDir = Paths.get("historial/" + clientName);
-            if (Files.exists(backupDir)) {
-                out.println("=== Lista de notas de voz guardadas ===");
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(backupDir)) {
-                    for (Path path : stream) {
-                        out.println(path.getFileName().toString());
+            Path baseDir = Paths.get("historial"); // Directorio base que contiene todas las carpetas de los clientes
+            if (Files.exists(baseDir)) {
+                out.println("=== Lista de todas las notas de voz guardadas ===");
+    
+                // Recorrer todas las carpetas de los diferentes clientes
+                try (DirectoryStream<Path> clientDirs = Files.newDirectoryStream(baseDir)) {
+                    for (Path clientDir : clientDirs) {
+                        if (Files.isDirectory(clientDir)) {
+                            String clientName = clientDir.getFileName().toString(); // Obtener el nombre del cliente
+                            out.println("Notas de voz de " + clientName + ":");
+    
+                            // Listar los archivos dentro de la carpeta del cliente
+                            try (DirectoryStream<Path> voiceNotes = Files.newDirectoryStream(clientDir)) {
+                                for (Path voiceNote : voiceNotes) {
+                                    out.println("  - " + voiceNote.getFileName().toString());
+                                }
+                            } catch (IOException e) {
+                                out.println("Error al listar notas de voz de " + clientName);
+                            }
+                        }
                     }
                 }
-                out.println("=== Fin del historial ===");
+    
+                out.println("=== Fin del historial de todas las notas de voz ===");
             } else {
-                out.println("No se han guardado notas de voz para este usuario.");
+                out.println("No se han guardado notas de voz para ningún usuario.");
             }
         } catch (IOException e) {
             System.out.println("Error al listar notas de voz: " + e.getMessage());
         }
     }
+    
     
     
 
@@ -258,36 +293,47 @@ public void run() {
     private void sendVoiceNoteToUser(Path filePath, String user) throws IOException {
         PrintWriter userWriter = clientes.getWriter(user);
         if (userWriter != null) {
-            userWriter.println("Recibiendo nota de voz de " + clientName);
-            sendFile(filePath, userWriter);
+            userWriter.println("Recibiendo nota de voz de " + clientName);  // Enviar mensaje al destinatario
+            sendFile(filePath, userWriter);  // Enviar el archivo
+            userWriter.flush();  // Asegurarse de que el mensaje y el archivo se envíen completamente
+            System.out.println("Nota de voz enviada a " + user + " correctamente.");
         }
     }
+    
 
     private void sendVoiceNoteToGroup(Path filePath, String group) throws IOException {
         for (PrintWriter writer : groups.get(group)) {
-            writer.println("Recibiendo nota de voz de " + clientName + " en el grupo " + group);
-            sendFile(filePath, writer);
+            writer.println("Recibiendo nota de voz de " + clientName + " en el grupo " + group);  // Enviar mensaje al grupo
+            sendFile(filePath, writer);  // Enviar el archivo
+            writer.flush();  // Asegurarse de que el mensaje y el archivo se envíen completamente
         }
+        System.out.println("Nota de voz enviada al grupo " + group + " correctamente.");
     }
+    
 
     private void sendFile(Path filePath, PrintWriter writer) throws IOException {
         try (FileInputStream fis = new FileInputStream(filePath.toFile());
              DataOutputStream dos = new DataOutputStream(clientSocket.getOutputStream())) {
-
+    
             long fileSize = Files.size(filePath);
-            dos.writeLong(fileSize);
-
+            dos.writeLong(fileSize);  // Enviar el tamaño del archivo
+    
             byte[] buffer = new byte[4096];
             int bytesRead;
             long totalBytesRead = 0;
+    
+            // Enviar contenido del archivo
             while ((bytesRead = fis.read(buffer)) > 0) {
                 dos.write(buffer, 0, bytesRead);
                 totalBytesRead += bytesRead;
                 System.out.printf("Enviando: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
             }
-            dos.flush();
-            System.out.println("\nNota de voz enviada correctamente.");
-            writer.println("Nota de voz recibida correctamente.");
+    
+            dos.flush();  // Asegurarse de que todos los datos se envíen
+            System.out.println("Nota de voz enviada completamente.");
+            writer.println("Nota de voz recibida correctamente.");  // Confirmación de recepción para el destinatario
+            writer.flush();  // Asegurarse de que el mensaje de confirmación se envíe completamente
         }
     }
+    
 }
