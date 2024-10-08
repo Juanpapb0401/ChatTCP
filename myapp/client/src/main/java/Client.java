@@ -9,6 +9,7 @@ public class Client {
 
     public static void main(String[] args) {
         try {
+            // Intentar conectar al servidor de mensajes
             Socket messageSocket = new Socket(SERVER_IP, PORT);
             System.out.println("Conectado al servidor para mensajes.");
 

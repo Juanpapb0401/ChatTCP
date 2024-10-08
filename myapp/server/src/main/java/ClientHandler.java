@@ -87,7 +87,10 @@ public void run() {
                     clientes.privateMessage(targetUser, clientName + " (privado): " + privateMessage);
                     addToHistory(clientName + " (privado a " + targetUser + "): " + privateMessage);
                 }
-            } else {
+            } else if (message.equals("/listvoicenotes")) {
+                listVoiceNoteHistory();
+            }
+            else {
                 clientes.broadcastMessage(clientName + ": " + message);
                 addToHistory(clientName + ": " + message);
             }
@@ -175,31 +178,67 @@ public void run() {
     }
 
     private void receiveVoiceNote(String fileName, String target) throws IOException {
-        Path filePath = Paths.get("server_" + fileName);
+        // Usar la clase File para obtener solo el nombre del archivo
+        String sanitizedFileName = new File(fileName).getName().replaceAll("[\\\\/:*?\"<>|]", "_");
+    
+        // Crear una carpeta de backups para el historial del usuario
+        Path backupDir = Paths.get("historial/" + clientName);
+        if (!Files.exists(backupDir)) {
+            Files.createDirectories(backupDir);  // Crear la carpeta si no existe
+        }
+    
+        // Guardar el archivo con su nombre y extensión original (sin agregar timestamp)
+        Path filePath = backupDir.resolve(sanitizedFileName);
+    
         try (DataInputStream dis = new DataInputStream(clientSocket.getInputStream());
              FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
-
+    
             long fileSize = dis.readLong();
             byte[] buffer = new byte[4096];
             int bytesRead;
             long totalBytesRead = 0;
-
+    
             while (totalBytesRead < fileSize && (bytesRead = dis.read(buffer)) != -1) {
                 fos.write(buffer, 0, bytesRead);
                 totalBytesRead += bytesRead;
                 System.out.printf("Recibiendo: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
             }
             fos.flush();
-            System.out.println("\nNota de voz recibida: " + fileName);
-
-            String voiceNoteMessage = clientName + " ha enviado una nota de voz a " + target + ": " + fileName;
+            System.out.println("\nNota de voz recibida: " + sanitizedFileName);
+    
+            // Guardar en el historial
+            String voiceNoteMessage = clientName + " ha enviado una nota de voz a " + target + ": " + sanitizedFileName;
             addToHistory(voiceNoteMessage);
-            sendVoiceNoteToTarget(fileName, target);
+            sendVoiceNoteToTarget(sanitizedFileName, target);
         } catch (IOException e) {
             System.out.println("Error al recibir la nota de voz: " + e.getMessage());
             throw e;
         }
     }
+    
+    
+    
+
+    private void listVoiceNoteHistory() {
+        try {
+            Path backupDir = Paths.get("historial/" + clientName);
+            if (Files.exists(backupDir)) {
+                out.println("=== Lista de notas de voz guardadas ===");
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(backupDir)) {
+                    for (Path path : stream) {
+                        out.println(path.getFileName().toString());
+                    }
+                }
+                out.println("=== Fin del historial ===");
+            } else {
+                out.println("No se han guardado notas de voz para este usuario.");
+            }
+        } catch (IOException e) {
+            System.out.println("Error al listar notas de voz: " + e.getMessage());
+        }
+    }
+    
+    
 
     private void sendVoiceNoteToTarget(String fileName, String target) throws IOException {
         Path filePath = Paths.get("server_" + fileName);
