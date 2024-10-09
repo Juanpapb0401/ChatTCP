@@ -53,11 +53,11 @@ Sigue los pasos a continuación para configurar el proyecto en tu entorno local.
 
 Muestra el historial completo de mensajes enviados en el chat desde que el servidor se inició. Este comando es útil para ver las conversaciones anteriores.
 
-/creategroup <nombreGrupo>:
+/creategroup nombreGrupo:
 
 Crea un nuevo grupo de chat con el nombre especificado. Si el grupo ya existe, se notifica al usuario que el grupo ya está creado.
 
-/joingroup <nombreGrupo>:
+/joingroup nombreGrupo:
 
 Permite que un usuario se una a un grupo existente. Si el grupo no existe, se muestra un mensaje indicando que no se encontró el grupo.
 
@@ -65,7 +65,7 @@ Permite que un usuario se una a un grupo existente. Si el grupo no existe, se mu
 
 Muestra una lista de todos los grupos disponibles en el servidor. Si no hay grupos, indica que no hay grupos disponibles.
 
-/msggroup <nombreGrupo> <mensaje>:
+/msggroup nombreGrupo mensaje:
 
 Envía un mensaje de texto al grupo especificado. El mensaje será visible para todos los miembros del grupo. Si el grupo no existe, se notifica al usuario.
 
@@ -73,11 +73,11 @@ Envía un mensaje de texto al grupo especificado. El mensaje será visible para 
 
 Muestra una lista de todos los usuarios actualmente conectados al servidor. Si no hay otros usuarios conectados, indica que no hay clientes conectados.
 
-/sendvoicenote <destinatario> <rutaArchivo>:
+/sendvoicenote destinatario rutaArchivo:
 
 Envía una nota de voz a un usuario específico. El archivo especificado en rutaArchivo será enviado al destinatario indicado. La recepción del archivo se realiza en un hilo separado para no bloquear la ejecución del programa.
 
-@<usuario>: <mensajePrivado>:
+@usuario: mensajePrivado:
 
 Envía un mensaje privado a otro usuario. El formato del comando es @usuario: mensaje, donde usuario es el nombre del destinatario y mensaje es el texto a enviar.
 
@@ -89,11 +89,11 @@ Muestra una lista de todas las notas de voz almacenadas en el sistema. Este coma
 
 Muestra una lista de las notas de voz enviadas por el usuario que ejecuta el comando. Es útil para ver solo los audios que el usuario ha enviado.
 
-/sendaudiogroup <nombreGrupo> <rutaArchivo>:
+/sendaudiogroup nombreGrupo rutaArchivo:
 
 Envía un archivo de audio al grupo especificado. Primero, se notifica a los miembros del grupo que se ha enviado una nota de voz, y luego se procede a enviar el archivo. Si el grupo no existe o el archivo no es accesible, se muestra un mensaje de error.
 
 Mensajes generales:
 
-Si el mensaje no coincide con ninguno de los comandos anteriores, se envía como un mensaje de texto público para todos los usuarios conectados. El mensaje será mostrado en el formato <nombreUsuario>: <mensaje>. 
+Si el mensaje no coincide con ninguno de los comandos anteriores, se envía como un mensaje de texto público para todos los usuarios conectados. El mensaje será mostrado en el formato nombreUsuario: mensaje. 
    
