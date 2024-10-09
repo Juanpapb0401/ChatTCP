@@ -67,6 +67,7 @@ public void run() {
             } else if (message.startsWith("/listclients")) {
                 listClients();
             } else if (message.startsWith("/sendvoicenote")) {
+                
                 String[] parts = message.split(" ", 3);
                 if (parts.length == 3) {
                     // Ejecutar la recepción de la nota de voz en un hilo separado
@@ -90,9 +91,12 @@ public void run() {
             } else if (message.equals("/listvoicenotes")) {
                 listVoiceNoteHistory();
             }
+            else if (message.equals("/listuservoicenotes")) {
+                listUserVoiceNotes();
+            }
             else {
                 clientes.broadcastMessage(clientName + ": " + message);
-                addToHistory(clientName + ": " + message);
+                addToHistory(clientName + ": " + message); 
             }
         }
     } catch (IOException e) {
@@ -178,24 +182,21 @@ public void run() {
     }
 
     private void receiveVoiceNote(String fileName, String target) throws IOException {
-        // Usar la clase File para obtener solo el nombre del archivo
+        
         String sanitizedFileName = new File(fileName).getName().replaceAll("[\\\\/:*?\"<>|]", "_");
-    
-        // Crear una carpeta de backups para el historial del usuario
         Path backupDir = Paths.get("historial/" + clientName);
         if (!Files.exists(backupDir)) {
-            Files.createDirectories(backupDir);  // Crear la carpeta si no existe
+            Files.createDirectories(backupDir);
         }
     
-        // Guardar el archivo con su nombre y extensión original
         Path filePath = backupDir.resolve(sanitizedFileName);
-        
-        System.out.println("Iniciando la recepción de archivo: " + sanitizedFileName);  // Diagnóstico
+        String confirmationMessage = clientName + " ha enviado una nota de voz con el nombre " + fileName + " y ha sido recibida correctamente.";
+        clientes.privateMessage(target, confirmationMessage);
     
         try (DataInputStream dis = new DataInputStream(clientSocket.getInputStream());
              FileOutputStream fos = new FileOutputStream(filePath.toFile())) {
     
-            long fileSize = dis.readLong();  // Leer el tamaño del archivo
+            long fileSize = dis.readLong();
             System.out.println("Tamaño del archivo a recibir: " + fileSize + " bytes");
     
             byte[] buffer = new byte[4096];
@@ -208,33 +209,22 @@ public void run() {
                 System.out.printf("Recibiendo: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
             }
     
-            fos.flush();  // Asegurarse de que todos los datos se escriban en el archivo
+            fos.flush();
             System.out.println("Recepción completada. Total de bytes recibidos: " + totalBytesRead);
     
-            // Verificar si se recibieron todos los bytes esperados
             if (totalBytesRead == fileSize) {
                 System.out.println("\nNota de voz recibida correctamente: " + sanitizedFileName);
             } else {
                 System.out.println("\nError: No se recibieron todos los bytes esperados. Se recibieron " + totalBytesRead + " de " + fileSize + " bytes.");
             }
     
-            // Guardar en el historial
-            String voiceNoteMessage = clientName + " ha enviado una nota de voz a " + target + ": " + sanitizedFileName;
-            addToHistory(voiceNoteMessage);
-            sendVoiceNoteToTarget(sanitizedFileName, target);
+            // Enviar la confirmación al destinatario
+            //sendVoiceNoteToTarget(sanitizedFileName, target);
         } catch (IOException e) {
             System.out.println("Error al recibir la nota de voz: " + e.getMessage());
             throw e;
         }
-    
-        // Asegurarse de cerrar el socket si aún está abierto
-        if (!clientSocket.isClosed()) {
-            System.out.println("Cerrando el socket de cliente después de recibir el archivo.");
-            clientSocket.close();
-        }
     }
-    
-    
     
     
 
@@ -271,16 +261,46 @@ public void run() {
             System.out.println("Error al listar notas de voz: " + e.getMessage());
         }
     }
-    
-    
-    
 
+    private void listUserVoiceNotes() throws IOException {
+        // Directorio base del historial del usuario actual
+        Path userDir = Paths.get("historial/" + clientName);
+        if (Files.exists(userDir)) {
+            out.println("=== Notas de voz enviadas por " + clientName + " ===");
+   
+            // Recorrer y listar todos los archivos en la carpeta del usuario
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(userDir)) {
+                boolean found = false;
+                for (Path path : stream) {
+                    out.println(path.getFileName().toString());
+                    found = true;
+                }
+   
+                if (!found) {
+                    out.println("No se han encontrado notas de voz enviadas.");
+                }
+            } catch (IOException e) {
+                out.println("Error al listar las notas de voz de " + clientName + ": " + e.getMessage());
+            }
+            out.println("=== Fin de la lista de notas de voz ===");
+        } else {
+            out.println("No se han encontrado notas de voz para el usuario " + clientName + ".");
+        }
+    }
+    
+    
+    
+    
+    
+    /* 
     private void sendVoiceNoteToTarget(String fileName, String target) throws IOException {
         Path filePath = Paths.get("server_" + fileName);
         if (Files.exists(filePath)) {
             if (clientes.existeUsr(target)) {
+                out.println("Enviando nota de voz.. skibidi.");
                 sendVoiceNoteToUser(filePath, target);
             } else if (groups.containsKey(target)) {
+                out.println("Enviando nota de voz.. skibidi.");
                 sendVoiceNoteToGroup(filePath, target);
             } else {
                 out.println("Usuario o grupo no encontrado: " + target);
@@ -294,11 +314,22 @@ public void run() {
         PrintWriter userWriter = clientes.getWriter(user);
         if (userWriter != null) {
             userWriter.println("Recibiendo nota de voz de " + clientName);  // Enviar mensaje al destinatario
-            sendFile(filePath, userWriter);  // Enviar el archivo
-            userWriter.flush();  // Asegurarse de que el mensaje y el archivo se envíen completamente
-            System.out.println("Nota de voz enviada a " + user + " correctamente.");
+            userWriter.flush();  // Asegurarse de que el mensaje llegue inmediatamente
+    
+            // Enviar el archivo
+            sendFile(filePath, userWriter);
+    
+            // Enviar la confirmación utilizando broadcastMessage
+            String confirmationMessage = "CONFIRMACION: " + clientName + " ha enviado una nota de voz a " + user + " y ha sido recibida correctamente.";
+            clientes.broadcastMessage(confirmationMessage);
+            System.out.println("Nota de voz enviada a " + user + " con confirmación.");
+        } else {
+            System.out.println("Error: El usuario " + user + " no está disponible para recibir la nota de voz.");
         }
     }
+    
+    
+    
     
 
     private void sendVoiceNoteToGroup(Path filePath, String group) throws IOException {
@@ -317,6 +348,7 @@ public void run() {
     
             long fileSize = Files.size(filePath);
             dos.writeLong(fileSize);  // Enviar el tamaño del archivo
+            dos.flush();  // Asegurarse de que el tamaño se envíe inmediatamente
     
             byte[] buffer = new byte[4096];
             int bytesRead;
@@ -331,9 +363,19 @@ public void run() {
     
             dos.flush();  // Asegurarse de que todos los datos se envíen
             System.out.println("Nota de voz enviada completamente.");
-            writer.println("Nota de voz recibida correctamente.");  // Confirmación de recepción para el destinatario
-            writer.flush();  // Asegurarse de que el mensaje de confirmación se envíe completamente
+    
+            // Confirmación adicional utilizando broadcastMessage
+            String broadcastConfirmation = "CONFIRMACION: Archivo enviado completamente y recibido por el destinatario.";
+            clientes.broadcastMessage(broadcastConfirmation);
+            System.out.println(broadcastConfirmation);
+        } catch (IOException e) {
+            System.out.println("Error al enviar el archivo: " + e.getMessage());
+            throw e;
         }
     }
+         */
+    
+    
+    
     
 }
