@@ -63,7 +63,7 @@ public void run() {
                 listGroups();
             } else if (message.startsWith("/msggroup")) {
                 String[] parts = message.split(" ", 3);
-                sendMessageToGroup(parts[1], parts[2]);
+                sendMessageToGroup(parts[1], parts[2], false);
             } else if (message.startsWith("/listclients")) {
                 listClients();
             } else if (message.startsWith("/sendvoicenote")) {
@@ -94,6 +94,21 @@ public void run() {
             else if (message.equals("/listuservoicenotes")) {
                 listUserVoiceNotes();
             }
+            else if (message.startsWith("/sendaudiogroup")) {
+                String[] parts = message.split(" ", 3);
+                if (parts.length == 3) {
+                    String groupName = parts[1];
+                    String fileName = parts[2];
+
+                    sendMessageToGroup(groupName, "Nota de voz recibida correctamente en el grupo " + groupName + " con el nombre " + fileName, true);
+
+                    Path filePath = Paths.get(fileName);
+            
+                    sendVoiceNoteToGroup(filePath, groupName);
+                } else {
+                    System.out.println("Uso: /sendvoicenotegroup <grupo> <nombreArchivo>");
+                }
+            }
             else {
                 clientes.broadcastMessage(clientName + ": " + message);
                 addToHistory(clientName + ": " + message); 
@@ -116,6 +131,42 @@ public void run() {
     }
 }
 
+
+    private void sendVoiceNoteToGroup(Path filePath, String groupName) throws IOException {
+        if (!groups.containsKey(groupName)) {
+            out.println("El grupo '" + groupName + "' no existe.");
+            return;
+        }
+    
+        // Abrir una nueva conexión para cada miembro del grupo
+        for (PrintWriter writer : groups.get(groupName)) {
+            try (Socket socket = new Socket(clientSocket.getInetAddress(), clientSocket.getPort());
+                 FileInputStream fis = new FileInputStream(filePath.toFile());
+                 DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
+    
+                long fileSize = Files.size(filePath);
+                dos.writeLong(fileSize); // Enviar el tamaño del archivo
+    
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                long totalBytesRead = 0;
+    
+                while ((bytesRead = fis.read(buffer)) > 0) {
+                    dos.write(buffer, 0, bytesRead);
+                    totalBytesRead += bytesRead;
+                    System.out.printf("Enviando a %s: %.2f%%\r", groupName, (totalBytesRead * 100.0) / fileSize);
+                }
+    
+                dos.flush();
+                writer.println("Nota de voz recibida correctamente en el grupo " + groupName);
+                writer.flush();
+            } catch (IOException e) {
+                System.out.println("Error al enviar la nota de voz al grupo " + groupName + ": " + e.getMessage());
+            }
+        }
+    
+        System.out.println("Nota de voz enviada al grupo " + groupName + " correctamente.");
+    }
 
     private static synchronized void addToHistory(String message) {
         String timestamp = LocalDateTime.now().format(formatter);
@@ -160,14 +211,22 @@ public void run() {
         }
     }
 
-    private void sendMessageToGroup(String groupName, String message) {
-        if (groups.containsKey(groupName)) {
+    private void sendMessageToGroup(String groupName, String message, Boolean isVoiceNote) {
+        if (groups.containsKey(groupName) && isVoiceNote == false) {
             String fullMessage = "Grupo " + groupName + ": " + clientName + ": " + message;
             for (PrintWriter writer : groups.get(groupName)) {
                 writer.println(fullMessage);
             }
             addToHistory(fullMessage);
-        } else {
+        } else if ( groups.containsKey(groupName) && isVoiceNote == true) {
+            String fullMessage = message + " enviado por: " + clientName;
+            for (PrintWriter writer : groups.get(groupName)) {
+                writer.println(fullMessage);
+            }
+            addToHistory(fullMessage);
+
+        }
+        else {
             out.println("El grupo '" + groupName + "' no existe.");
         }
     }
@@ -226,8 +285,6 @@ public void run() {
         }
     }
     
-    
-
     private void listVoiceNoteHistory() {
         try {
             Path baseDir = Paths.get("historial"); // Directorio base que contiene todas las carpetas de los clientes
@@ -287,94 +344,6 @@ public void run() {
             out.println("No se han encontrado notas de voz para el usuario " + clientName + ".");
         }
     }
-    
-    
-    
-    
-    
-    /* 
-    private void sendVoiceNoteToTarget(String fileName, String target) throws IOException {
-        Path filePath = Paths.get("server_" + fileName);
-        if (Files.exists(filePath)) {
-            if (clientes.existeUsr(target)) {
-                out.println("Enviando nota de voz.. skibidi.");
-                sendVoiceNoteToUser(filePath, target);
-            } else if (groups.containsKey(target)) {
-                out.println("Enviando nota de voz.. skibidi.");
-                sendVoiceNoteToGroup(filePath, target);
-            } else {
-                out.println("Usuario o grupo no encontrado: " + target);
-            }
-        } else {
-            out.println("Archivo no encontrado en el servidor: " + fileName);
-        }
-    }
-
-    private void sendVoiceNoteToUser(Path filePath, String user) throws IOException {
-        PrintWriter userWriter = clientes.getWriter(user);
-        if (userWriter != null) {
-            userWriter.println("Recibiendo nota de voz de " + clientName);  // Enviar mensaje al destinatario
-            userWriter.flush();  // Asegurarse de que el mensaje llegue inmediatamente
-    
-            // Enviar el archivo
-            sendFile(filePath, userWriter);
-    
-            // Enviar la confirmación utilizando broadcastMessage
-            String confirmationMessage = "CONFIRMACION: " + clientName + " ha enviado una nota de voz a " + user + " y ha sido recibida correctamente.";
-            clientes.broadcastMessage(confirmationMessage);
-            System.out.println("Nota de voz enviada a " + user + " con confirmación.");
-        } else {
-            System.out.println("Error: El usuario " + user + " no está disponible para recibir la nota de voz.");
-        }
-    }
-    
-    
-    
-    
-
-    private void sendVoiceNoteToGroup(Path filePath, String group) throws IOException {
-        for (PrintWriter writer : groups.get(group)) {
-            writer.println("Recibiendo nota de voz de " + clientName + " en el grupo " + group);  // Enviar mensaje al grupo
-            sendFile(filePath, writer);  // Enviar el archivo
-            writer.flush();  // Asegurarse de que el mensaje y el archivo se envíen completamente
-        }
-        System.out.println("Nota de voz enviada al grupo " + group + " correctamente.");
-    }
-    
-
-    private void sendFile(Path filePath, PrintWriter writer) throws IOException {
-        try (FileInputStream fis = new FileInputStream(filePath.toFile());
-             DataOutputStream dos = new DataOutputStream(clientSocket.getOutputStream())) {
-    
-            long fileSize = Files.size(filePath);
-            dos.writeLong(fileSize);  // Enviar el tamaño del archivo
-            dos.flush();  // Asegurarse de que el tamaño se envíe inmediatamente
-    
-            byte[] buffer = new byte[4096];
-            int bytesRead;
-            long totalBytesRead = 0;
-    
-            // Enviar contenido del archivo
-            while ((bytesRead = fis.read(buffer)) > 0) {
-                dos.write(buffer, 0, bytesRead);
-                totalBytesRead += bytesRead;
-                System.out.printf("Enviando: %.2f%%\r", (totalBytesRead * 100.0) / fileSize);
-            }
-    
-            dos.flush();  // Asegurarse de que todos los datos se envíen
-            System.out.println("Nota de voz enviada completamente.");
-    
-            // Confirmación adicional utilizando broadcastMessage
-            String broadcastConfirmation = "CONFIRMACION: Archivo enviado completamente y recibido por el destinatario.";
-            clientes.broadcastMessage(broadcastConfirmation);
-            System.out.println(broadcastConfirmation);
-        } catch (IOException e) {
-            System.out.println("Error al enviar el archivo: " + e.getMessage());
-            throw e;
-        }
-    }
-         */
-    
     
     
     
