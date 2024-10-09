@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.Map.Entry;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -132,41 +133,71 @@ public void run() {
 }
 
 
-    private void sendVoiceNoteToGroup(Path filePath, String groupName) throws IOException {
-        if (!groups.containsKey(groupName)) {
-            out.println("El grupo '" + groupName + "' no existe.");
-            return;
-        }
-    
-        // Abrir una nueva conexión para cada miembro del grupo
-        for (PrintWriter writer : groups.get(groupName)) {
-            try (Socket socket = new Socket(clientSocket.getInetAddress(), clientSocket.getPort());
-                 FileInputStream fis = new FileInputStream(filePath.toFile());
-                 DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
-    
-                long fileSize = Files.size(filePath);
-                dos.writeLong(fileSize); // Enviar el tamaño del archivo
-    
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                long totalBytesRead = 0;
-    
-                while ((bytesRead = fis.read(buffer)) > 0) {
-                    dos.write(buffer, 0, bytesRead);
-                    totalBytesRead += bytesRead;
-                    System.out.printf("Enviando a %s: %.2f%%\r", groupName, (totalBytesRead * 100.0) / fileSize);
-                }
-    
-                dos.flush();
-                writer.println("Nota de voz recibida correctamente en el grupo " + groupName);
-                writer.flush();
-            } catch (IOException e) {
-                System.out.println("Error al enviar la nota de voz al grupo " + groupName + ": " + e.getMessage());
-            }
-        }
-    
-        System.out.println("Nota de voz enviada al grupo " + groupName + " correctamente.");
+private void sendVoiceNoteToGroup(Path filePath, String groupName) throws IOException {
+    if (!groups.containsKey(groupName)) {
+        out.println("El grupo '" + groupName + "' no existe.");
+        return;
     }
+
+    // Guardar la nota de voz en el historial del remitente
+    String sanitizedFileName = new File(filePath.getFileName().toString()).getName().replaceAll("[\\\\/:*?\"<>|]", "_");
+    Path backupDirSender = Paths.get("historial/" + clientName);
+    if (!Files.exists(backupDirSender)) {
+        Files.createDirectories(backupDirSender);
+    }
+    Path senderFilePath = backupDirSender.resolve(sanitizedFileName);
+    Files.copy(filePath, senderFilePath, StandardCopyOption.REPLACE_EXISTING);
+
+    // Abrir una nueva conexión para cada miembro del grupo
+    for (PrintWriter writer : groups.get(groupName)) {
+        try (Socket socket = new Socket(clientSocket.getInetAddress(), clientSocket.getPort());
+             FileInputStream fis = new FileInputStream(filePath.toFile());
+             DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
+
+            long fileSize = Files.size(filePath);
+            dos.writeLong(fileSize); // Enviar el tamaño del archivo
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            long totalBytesRead = 0;
+
+            while ((bytesRead = fis.read(buffer)) > 0) {
+                dos.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+                System.out.printf("Enviando a %s: %.2f%%\r", groupName, (totalBytesRead * 100.0) / fileSize);
+            }
+
+            dos.flush();
+            writer.println("Nota de voz recibida correctamente en el grupo " + groupName);
+            writer.flush();
+
+            // Guardar una copia de la nota de voz en el historial de cada miembro
+            String recipientName = getClientNameFromWriter(writer); // Método para obtener el nombre del cliente
+            Path backupDirRecipient = Paths.get("historial/" + recipientName);
+            if (!Files.exists(backupDirRecipient)) {
+                Files.createDirectories(backupDirRecipient);
+            }
+            Path recipientFilePath = backupDirRecipient.resolve(sanitizedFileName);
+            Files.copy(filePath, recipientFilePath, StandardCopyOption.REPLACE_EXISTING);
+
+        } catch (IOException e) {
+            System.out.println("Error al enviar la nota de voz al grupo " + groupName + ": " + e.getMessage());
+        }
+    }
+
+    System.out.println("Nota de voz enviada al grupo " + groupName + " correctamente.");
+}
+
+// Método auxiliar para obtener el nombre del cliente basado en el PrintWriter
+private String getClientNameFromWriter(PrintWriter writer) {
+    for (Entry<String, Set<PrintWriter>> entry : groups.entrySet()) {
+        if (entry.getValue().contains(writer)) {
+            return entry.getKey(); // Devuelve el nombre del cliente
+        }
+    }
+    return "unknown"; // En caso de que no se encuentre el nombre del cliente
+}
+
 
     private static synchronized void addToHistory(String message) {
         String timestamp = LocalDateTime.now().format(formatter);

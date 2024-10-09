@@ -1,0 +1,12 @@
+<state>
+  <timestamp value='1728515101823' />
+  <sourceSet name='default'>
+    <source name='D:\ChatTCP\myapp\Myapp.ice'>
+      <file name='D:\ChatTCP\myapp\client\build\generated-src\Demo\Printer.java' />
+      <file name='D:\ChatTCP\myapp\client\build\generated-src\Demo\PrinterPrx.java' />
+      <file name='D:\ChatTCP\myapp\client\build\generated-src\Demo\_PrinterPrxI.java' />
+    </source>
+    <arg value='C:\Program Files\ZeroC\Ice-3.7.10\\bin\slice2java.exe' />
+    <arg value='-IC:\Program Files\ZeroC\Ice-3.7.10\\slice' />
+  </sourceSet>
+</state>
