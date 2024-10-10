@@ -57,7 +57,9 @@ Hay que tener en cuenta que se puede correr el proyecto en un mismo terminal por
 4. **Abrir terminal Server**
 
    .\gradlew build
+   
    .\gradlew :server:build (opcional porque ya se corrio el build para todo el proyecto)
+   
    java -jar server/build/libs/server.jar
 
    Si lo hacen correctamente les debería salir esto en la terminal
@@ -65,8 +67,11 @@ Hay que tener en cuenta que se puede correr el proyecto en un mismo terminal por
   ![Imagen de WhatsApp 2024-10-09 a las 19 46 26_6d1b119f](https://github.com/user-attachments/assets/1c1160dd-4767-4350-b73d-9148fa8446be)
 
 5. **Abrir terminar Client**
+   
    .\gradlew build
+   
    .\gradlew :client:build (opcional porque ya se corrio el build para todo el proyecto)
+   
    java -jar client/build/libs/client.jar
 
 ![Imagen de WhatsApp 2024-10-09 a las 19 47 32_9755dee2](https://github.com/user-attachments/assets/0cb36040-640d-4ece-b3d3-a3a9695c6ed1)
