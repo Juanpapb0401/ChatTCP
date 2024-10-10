@@ -110,7 +110,7 @@ Envía una nota de voz a un usuario específico. El archivo especificado en ruta
 
 @usuario: mensajePrivado:
 
-Envía un mensaje privado a otro usuario. El formato del comando es @usuario: mensaje, donde usuario es el nombre del destinatario y mensaje es el texto a enviar.
+Envía un mensaje privado a otro usuario. El formato del comando es @usuario: mensaje, donde usuario es el nombre del destinatario y mensaje es el texto a enviar. Tener en cuenta que se debe de colocar los ":" al final del nombre de usuario
 
 /listvoicenotes:
 
